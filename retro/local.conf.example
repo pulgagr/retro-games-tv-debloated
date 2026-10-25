@@ -1,0 +1,13 @@
+# Your setup. Copy to local.conf (which git ignores) and edit:  cp local.conf.example local.conf
+
+# Fire TV / Android TV address for ADB (Settings > My Fire TV > About > Network; ADB debugging on)
+TV=192.168.1.50:5555
+
+# NAS SMB share with the ROMs. The TV downloads from smb://NAS_HOST/NAS_SHARE/<ROMS folder name>/...
+# Use the NAS's IP address: TVs often can't resolve local host names.
+NAS_HOST=192.168.1.10
+NAS_SHARE=Public
+
+# The same share mounted on this Mac, so the catalog script can scan it (and how to mount it)
+ROMS=/Volumes/Public/ROMS
+NAS_URL=smb://192.168.1.10/Public

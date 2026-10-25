@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #12121c; color: #eee; font-family: sans-serif; }
+  h1 { margin: 0; padding: 24px 40px 8px; font-size: 28px; color: #ffc107; }
+  h1 small { color: #888; font-size: 18px; font-weight: normal; margin-left: 12px; }
+  #grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; padding: 16px 40px 40px; }
+  .g { position: relative; background: #1e1e2e; border-radius: 10px; overflow: hidden; outline: none;
+           border: 4px solid transparent; transition: transform .1s; }
+  .g:focus { border-color: #ffc107; transform: scale(1.06); }
+  .g img, .g .ph { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #2a2a3c; }
+  .g .ph { display: flex; align-items: center; justify-content: center; padding: 12px; text-align: center;
+           font-weight: bold; font-size: 17px; color: #ccc; }
+  .t { margin: 8px 10px 10px; font-size: 15px; font-weight: bold; line-height: 1.25; height: 2.5em;
+       overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .saved { position: absolute; top: 6px; right: 6px; background: #ffc107; color: #000; font-size: 12px;
+           font-weight: bold; padding: 2px 7px; border-radius: 9px; }
+  /* Console carousel: the selected console big in the middle, neighbours smaller at the sides */
+  #consoles { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; overflow: hidden; }
+  #consoles h1 { position: relative; z-index: 2; }
+  #glow { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: .5; transition: opacity .3s; }
+  .slide { position: absolute; left: 50%; top: 45%; width: 44vw; height: 50vh; margin-left: -22vw;
+           transition: transform .35s ease-out, opacity .35s; }
+  /* photos have different shapes (the Game Boy is tall): fit each inside the same box */
+  .slide img { display: block; width: 100%; height: 100%; object-fit: contain;
+               filter: drop-shadow(0 1.5vw 1.5vw rgba(0,0,0,.6)); }
+  .slide .ph { height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 2vw;
+               font: bold 4vw sans-serif; }
+  #caption { position: absolute; left: 0; right: 0; bottom: 9vh; text-align: center; z-index: 2; }
+  #cname { font-size: 5.2vw; font-weight: bold; }
+  #ccount { margin-top: .6vw; font-size: 2vw; color: rgba(255,255,255,.65); }
+  #dots { margin-top: 1.6vw; }
+  #dots i { display: inline-block; width: .9vw; height: .9vw; margin: 0 .5vw; border-radius: 50%;
+            background: rgba(255,255,255,.3); }
+  #dots i.on { background: #ffc107; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<div id="consoles">
+  <div id="glow"></div>
+  <h1>Retro Games</h1>
+  <div id="caption"><div id="cname"></div><div id="ccount"></div><div id="dots"></div></div>
+</div>
+<h1 id="title" class="hide">Retro Games</h1>
+<div id="grid" class="hide"></div>
+<script src="games.js"></script>
+<script>
+  var COLS = 6;
+  var title = document.getElementById('title');
+  var consolesEl = document.getElementById('consoles'), grid = document.getElementById('grid');
+  var cards = [], games = [], current = null, saved = {};
+  var slides = [], sel = 0;
+
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  // Games with a resume point, from the app (missing when the page is opened in a browser)
+  function refreshSaved() {
+    saved = {};
+    try { Android.saved().split('\n').forEach(function (k) { if (k) saved[k] = 1; }); } catch (e) {}
+    cards.forEach(function (el) {
+      var b = el.querySelector('.saved');
+      if (b) b.classList.toggle('hide', !saved[el.dataset.key]);
+    });
+  }
+
+  CONSOLES.forEach(function (c) {
+    c.count = GAMES.filter(function (g) { return g[0] === c.id; }).length;
+    var el = document.createElement('div');
+    el.className = 'slide';
+    if (c.art) el.innerHTML = '<img src="consoles/' + c.id + '.webp">';
+    else {
+      el.innerHTML = '<div class="ph"></div>';
+      el.firstChild.textContent = c.name;
+      el.firstChild.style.background = c.color;
+    }
+    el.offset = 0;
+    consolesEl.appendChild(el);
+    slides.push(el);
+    document.getElementById('dots').appendChild(document.createElement('i'));
+  });
+
+  // Lays the carousel out around console `i` (wrapping around at both ends)
+  function pick(i) {
+    var n = CONSOLES.length;
+    sel = (i % n + n) % n;
+    slides.forEach(function (el, j) {
+      var d = j - sel;
+      if (d > n / 2) d -= n; else if (d < -n / 2) d += n;
+      // A slide wrapping from one side to the other jumps instead of sliding across the screen
+      var jump = Math.abs(d - el.offset) > 1.5;
+      if (jump) el.style.transition = 'none';
+      el.offset = d;
+      var far = Math.abs(d);
+      el.style.transform = 'translate(' + (d * 40) + 'vw, -50%) scale(' + (far ? 0.55 : 1) + ')';
+      el.style.opacity = far === 0 ? 1 : far <= 1 ? 0.35 : 0;
+      el.style.zIndex = far ? 0 : 1;
+      if (jump) { el.offsetWidth; el.style.transition = ''; }
+    });
+    var c = CONSOLES[sel];
+    document.getElementById('glow').style.background =
+      'radial-gradient(ellipse 45% 55% at 50% 42%, ' + c.color + ', transparent)';
+    document.getElementById('cname').textContent = c.name;
+    document.getElementById('ccount').textContent = c.count + ' games';
+    [].forEach.call(document.getElementById('dots').children, function (d, j) { d.className = j === sel ? 'on' : ''; });
+    store('console', sel);
+  }
+
+  // The hash says which screen we're on: empty = console picker, otherwise a console's games.
+  // Using the hash means Back goes from a game list to the consoles.
+  function show() {
+    var id = location.hash.slice(1);
+    current = CONSOLES.filter(function (c) { return c.id === id; })[0] || null;
+    consolesEl.classList.toggle('hide', !!current);
+    grid.classList.toggle('hide', !current);
+    title.classList.toggle('hide', !current);
+    if (!current) {
+      cards = [];
+      if (document.activeElement) document.activeElement.blur();
+      pick(+load('console') || 0);
+      return;
+    }
+    store('console', CONSOLES.indexOf(current));
+    title.innerHTML = 'Retro Games<small></small>';
+    title.querySelector('small').textContent = current.name;
+    games = GAMES.filter(function (g) { return g[0] === current.id; });
+    grid.innerHTML = '';
+    cards = games.map(function (g, i) {
+      var el = document.createElement('div');
+      el.className = 'g'; el.tabIndex = 0;
+      el.dataset.key = g[0] + '/' + g[3];
+      el.innerHTML = (g[4] ? '<img loading="lazy">' : '<div class="ph"></div>') +
+        '<div class="t"></div><div class="saved hide">&#9654; Continue</div>';
+      if (g[4]) el.querySelector('img').src = 'covers/' + g[0] + '/' + g[3] + '.webp';
+      else el.querySelector('.ph').textContent = g[2];
+      el.querySelector('.t').textContent = g[2];
+      el.onclick = function () { play(i); };
+      grid.appendChild(el);
+      return el;
+    });
+    refreshSaved();
+    focus(+load('last-' + current.id) || 0);
+  }
+
+  function play(i) {
+    var g = games[i];
+    store('last-' + current.id, i);
+    // Arcade sets stay zipped ("raw") and bring the zips they need (parent set, BIOS) along
+    var dir = SOURCE.dir + '/' + current.folder + '/';
+    var deps = (g[5] || []).map(function (f) { return dir + f; }).join('|');
+    Android.play(current.core, SOURCE.host, SOURCE.share, dir + g[1], g[0] + '/' + g[3], g[2], !!current.raw, deps);
+  }
+
+  function focus(i) {
+    i = Math.max(0, Math.min(cards.length - 1, i));
+    cards[i].focus(); cards[i].scrollIntoView({block: 'center'});
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (!current) {   // console carousel: left/right to choose, OK to open
+      if (e.keyCode === 37 || e.keyCode === 39) { pick(sel + (e.keyCode === 37 ? -1 : 1)); e.preventDefault(); }
+      else if (e.keyCode === 13) { location.hash = CONSOLES[sel].id; e.preventDefault(); }
+      return;
+    }
+    var i = cards.indexOf(document.activeElement);
+    var step = {37: -1, 39: 1, 38: -COLS, 40: COLS}[e.keyCode];
+    if (step) { focus(i < 0 ? 0 : i + step); e.preventDefault(); }
+    else if (e.keyCode === 13 && i >= 0) { cards[i].click(); e.preventDefault(); }
+  });
+
+  window.addEventListener('hashchange', show);
+  show();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[submodule "retro/third_party/fceumm"]
+	path = retro/third_party/fceumm
+	url = https://github.com/libretro/libretro-fceumm.git
+[submodule "retro/third_party/snes9x2005"]
+	path = retro/third_party/snes9x2005
+	url = https://github.com/libretro/snes9x2005.git
+[submodule "retro/third_party/genesis_plus_gx"]
+	path = retro/third_party/genesis_plus_gx
+	url = https://github.com/libretro/Genesis-Plus-GX.git
+[submodule "retro/third_party/gambatte"]
+	path = retro/third_party/gambatte
+	url = https://github.com/libretro/gambatte-libretro.git
+[submodule "retro/third_party/mame2000"]
+	path = retro/third_party/mame2000
+	url = https://github.com/libretro/mame2000-libretro.git

@@ -1,0 +1,38 @@
+# Build output and signing keys (each build makes its own key; never share it)
+build/
+*.apk
+*.idsig
+*.keystore
+
+# Your setup (copy retro/local.conf.example)
+retro/local.conf
+
+# Generated from your ROM collection by retro/tools/catalog.py
+retro/app/assets/games.js
+retro/app/assets/covers/
+retro/app/assets/consoles/
+
+# ROMs: never commit games. nes/tools/get_roms.sh re-downloads the free homebrew test set.
+nes/app/assets/roms/
+nes/app/assets/CREDITS.txt
+snes/app/assets/roms/
+*.nes
+*.sfc
+*.smc
+*.zip
+
+# Old copies of cores (nes/ and snes/ now build from retro/third_party)
+nes/third_party/
+snes/third_party/
+
+# First experiment (a web wrapper for a third-party site), kept out of the repo
+/app/
+/tools/
+/build.sh
+
+# Local files
+.DS_Store
+.claude/
+*.png
+*.mp4
+!retro/app/res/**/*.png
