@@ -14,6 +14,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
   NDK_APPLICATION_MK=jni/Application.mk NDK_OUT=../build/obj NDK_LIBS_OUT=../build/lib 2>&1 | grep -v "fcntl" || true)
 [ -f build/lib/armeabi-v7a/libnes.so ] || { echo "native build failed"; exit 1; }
 
+mkdir -p app/assets/roms   # ROMs are not in git, so the folder may not exist yet
 rm -rf build/apk && mkdir -p build/apk/gen build/apk/classes build/apk/dex build/apk/pkg/lib
 "$BT/aapt2" compile --dir app/res -o build/apk/res.zip
 "$BT/aapt2" link -I "$JAR" --manifest app/AndroidManifest.xml -A app/assets \
