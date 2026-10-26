@@ -4,13 +4,17 @@ A small native retro-game app for Amazon Fire TV and Android TV boxes. It plays 
 Master System, Game Boy and arcade (MAME)** at a full 60 fps on a cheap Fire TV Stick, with games
 streamed on demand from your own NAS.
 
-- **Console carousel and box-art grid,** navigable with the remote or a Bluetooth controller.
+- **Console carousel, then a game shelf:** a big hero for the selected game (year, developer, players)
+  over a row of box art, with "Continue playing" and "Favorites" rows. It works with the remote or a
+  Bluetooth controller.
 - **Games download from an SMB share** (a NAS) the first time you play them, then stay on the TV.
 - **Save states, in-game battery saves, and "continue where you left off".**
 - **About 12 MB** for the whole APK, using libretro emulator cores and a tiny C frontend.
 - **Built with nothing but the Android command-line tools:** no Gradle, no Android Studio.
 
 No games are included. Bring your own (see [Games](#games)).
+
+![The game shelf on a Fire TV: arcade section, with Alpine Ski selected](docs/shelf.jpg)
 
 ## How it performs
 
@@ -95,7 +99,14 @@ updates can't install over the existing app, and uninstalling to start over lose
 
 ## Using it
 
-- **Menu:** left and right choose a console, OK opens it, Back returns.
+- **Consoles:** left and right choose a console, OK opens its shelf, Back returns.
+- **Shelf:** left and right move through the games, up and down switch rows, OK plays.
+
+  | Action | Controller | Remote |
+  |---|---|---|
+  | Favorite (★) | Y | Menu |
+  | Surprise me (random game) | X | — |
+  | Previous / next letter | L / R | Rewind / Fast-forward |
 - **Starting a game:** the first time, it downloads from the NAS ("Downloading…").
 - **Pause menu:** Back (remote or controller), the controller's Guide/Home button, or Start + Select
   together. It offers Resume, Save state, Load state, Restart game and Quit.
@@ -112,7 +123,7 @@ updates can't install over the existing app, and uninstalling to start over lose
 
 ```
 MenuActivity (WebView: assets/menu.html + games.js + covers/)
-   │ console carousel (photos) → game grid (box art, "▶ Continue" badge)
+   │ console carousel (photos) → game shelf (hero + one row of 9 cover slots that shift as you move)
    │ Bridge.play(core, host, share, path, key, title, raw, deps)      (window.Android in JS)
    ▼
 GameActivity
@@ -176,9 +187,14 @@ Reinstalling (`adb install -r`) keeps all of these. Uninstalling deletes them.
   - Fan translations often have no art. They show a tile with the title.
 - **Console photos:** Wikimedia Commons files, cut out (white backgrounds cleared from the corners),
   saved as `app/assets/consoles/<id>.webp`, and credited in `app/assets/consoles/CREDITS.txt`.
+- **Year, developer and players:** from [libretro-database](https://github.com/libretro/libretro-database)
+  metadata (`releaseyear`, `developer`, `maxusers`), matched by the CRC of the ROM inside each zip,
+  then by name. Arcade uses year and manufacturer from MAME's list.
+- **Safety:** if it finds no games (usually because the share isn't mounted), it stops instead of
+  wiping the list and covers.
 - **Output:** `games.js` contains `SOURCE` (NAS host, share, ROM dir), `CONSOLES`, and `GAMES`
-  (`[console, file, title, key, hasCover, (arcade) zips it also needs]`). The key names the cover,
-  the downloaded ROM, and the saves.
+  (`[console, file, title, key, hasCover, (arcade) zips it also needs or 0, "year · developer · players"]`).
+  The key names the cover, the downloaded ROM, and the saves.
 
 ### Arcade (MAME)
 

@@ -31,9 +31,26 @@ public class MenuActivity extends Activity {
         web.evaluateJavascript("typeof refreshSaved == 'function' && refreshSaved()", null);
     }
 
+    /** Buttons the web page has no key codes for, passed to its pad(): favorite, surprise, letter jumps */
+    private static String padButton(int k) {
+        switch (k) {
+            case KeyEvent.KEYCODE_BUTTON_Y: case KeyEvent.KEYCODE_MENU: return "y";
+            case KeyEvent.KEYCODE_BUTTON_X: return "x";
+            case KeyEvent.KEYCODE_BUTTON_L1: case KeyEvent.KEYCODE_MEDIA_REWIND: return "l";
+            case KeyEvent.KEYCODE_BUTTON_R1: case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: return "r";
+            default: return null;
+        }
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
+        String b = padButton(k);
+        if (b != null) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN)
+                web.evaluateJavascript("typeof pad == 'function' && pad('" + b + "')", null);
+            return true;
+        }
         // Controller A picks, B goes back
         if (k == KeyEvent.KEYCODE_BUTTON_A)
             return super.dispatchKeyEvent(new KeyEvent(e.getAction(), KeyEvent.KEYCODE_ENTER));

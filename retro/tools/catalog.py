@@ -7,7 +7,8 @@ Usage: catalog.py ROMS_DIR NAS_HOST [SHARE]      (update.sh passes these from lo
   ROMS_DIR: the ROM folder of the NAS share, mounted on this Mac (e.g. /Volumes/Public/ROMS)
   NAS_HOST: the NAS's IP address; the TV downloads from smb://NAS_HOST/SHARE/<ROMS_DIR's name>/...
   SHARE:    the SMB share name (default Public)
-Needs curl and ImageMagick (magick). Box art comes from the libretro-thumbnails project; console
+Needs curl and ImageMagick (magick). Box art comes from the libretro-thumbnails project, release year,
+developer and player count from libretro-database (MAME's own list for arcade); console
 photos (app/assets/consoles/) from Wikimedia Commons, credited in app/assets/consoles/CREDITS.txt.
 """
 import json, os, re, subprocess, sys, urllib.parse, zipfile
@@ -99,12 +100,13 @@ def cover(job):
 
 _dats = {}
 def dat(path):
-    """MAME game list: set name -> (description, romof, CRCs of the ROMs it needs, cloneof)"""
+    """MAME game list: set name -> (description, romof, CRCs of the ROMs it needs, cloneof, year, maker)"""
     if path not in _dats:
         sets = {}
         for g in ET.parse(path).getroot().iter('game'):
             crcs = {r.get('crc').lower() for r in g.iter('rom') if r.get('crc') and r.get('status') != 'nodump'}
-            sets[g.get('name')] = (g.findtext('description') or g.get('name'), g.get('romof'), crcs, g.get('cloneof'))
+            sets[g.get('name')] = (g.findtext('description') or g.get('name'), g.get('romof'), crcs, g.get('cloneof'),
+                                   g.findtext('year') or '', g.findtext('manufacturer') or '')
         _dats[path] = sets
     return _dats[path]
 
@@ -113,7 +115,7 @@ def arcade(c, folder, files):
     sets = dat(c['dat'])
     on_share = {os.path.splitext(f)[0]: f for f in files}
     # A BIOS (e.g. neogeo) is what games point to with romof without being their parent (cloneof)
-    bios = {r for _, r, _, clone in sets.values() if r and not clone}
+    bios = {r for _, r, _, clone, _, _ in sets.values() if r and not clone}
     crcs = {}
     def contents(name):
         if name not in crcs:
@@ -135,8 +137,43 @@ def arcade(c, folder, files):
             skipped.append((name, 'needs ' + ', '.join(d + '.zip' for d in missing_deps) if missing_deps
                             else 'incomplete or wrong-version zip'))
             continue
-        ok.append((f, title(sets[name][0]), [on_share[d] for d in chain if d in on_share], name, sets[name][0]))
+        info = ' · '.join(x for x in (sets[name][4], sets[name][5]) if x and '?' not in x)
+        ok.append((f, title(sets[name][0]), [on_share[d] for d in chain if d in on_share], name, sets[name][0], info))
     return ok, skipped
+
+_meta = {}
+def metadata(system):
+    """Release year, developer and player count from libretro-database, by ROM CRC, file name and title"""
+    if system not in _meta:
+        by = {}
+        for kind in ('releaseyear', 'developer', 'maxusers'):
+            url = 'https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/%s/%s.dat' % (
+                kind, urllib.parse.quote(system))
+            text = subprocess.run(['curl', '-sf', url], capture_output=True).stdout.decode('utf-8', 'replace')
+            for block in re.findall(r'game \((.*?)\n\)', text, re.S):
+                fields = dict(re.findall(r'^\s*(\w+) "?([^"\n]*?)"?\s*$', block, re.M))
+                crc = re.search(r'crc ([0-9A-Fa-f]{8})', block)
+                entry = {k: v for k, v in fields.items() if k in ('releaseyear', 'developer', 'users')}
+                for k in ([crc.group(1).lower()] if crc else []) + ([fields['comment'], norm(fields['comment'])] if 'comment' in fields else []):
+                    by.setdefault(k, {}).update(entry)
+        _meta[system] = by
+    return _meta[system]
+
+def describe(system, path, name):
+    """'1990 · Nintendo · 2 players' for one ROM (zipped or not)"""
+    by = metadata(system)
+    try:
+        if path.lower().endswith('.zip'):
+            crc = '%08x' % zipfile.ZipFile(path).infolist()[0].CRC
+        else:
+            import zlib
+            crc = '%08x' % (zlib.crc32(open(path, 'rb').read()) & 0xffffffff)
+    except (zipfile.BadZipFile, OSError, IndexError):
+        crc = ''
+    m = by.get(crc) or by.get(name) or by.get(norm(name)) or {}
+    users = m.get('users', '')
+    players = (users + (' player' if users == '1' else ' players')) if users.isdigit() else ''
+    return ' · '.join(x for x in (m.get('releaseyear', ''), m.get('developer', ''), players) if x)
 
 def photo(c):
     """Console photo for the carousel: transparent edges trimmed, 640 px wide WebP with alpha"""
@@ -168,17 +205,19 @@ for c in CONSOLES:
         entry['raw'] = 1
         playable, left_out = arcade(c, folder, files)
         skipped += [(c['name'], n, why) for n, why in left_out]
-        for f, t, deps, name, desc in playable:
-            games.append([c['id'], f, t, name, deps])
+        for f, t, deps, name, desc, info in playable:
+            games.append([c['id'], f, t, name, deps, info])
             jobs.append((c['thumbs'], desc, os.path.join(ASSETS, 'covers', c['id'], name + '.webp'), kinds))
     else:
         for f in files:
             name = os.path.splitext(f)[0]
             key = re.sub(r'[^A-Za-z0-9]+', '-', name).strip('-').lower()
-            games.append([c['id'], f, title(name), key, None])
+            games.append([c['id'], f, title(name), key, 0, describe(c['thumbs'], os.path.join(folder, f), name)])
             jobs.append((c['thumbs'], name, os.path.join(ASSETS, 'covers', c['id'], key + '.webp'), kinds))
     consoles.append(entry)
 
+if not games:   # most likely the share isn't mounted: don't wipe the existing list and covers
+    sys.exit('No games found in %s. Is the NAS share mounted?' % ROMS)
 sys.stderr.write('%d games in %d consoles, fetching covers...\n' % (len(games), len(consoles)))
 for c in CONSOLES:                      # load art indexes before the threads start
     if any(x['id'] == c['id'] for x in consoles):
@@ -196,8 +235,9 @@ for root, _, files in os.walk(os.path.join(ASSETS, 'covers')):
     for f in files:
         if os.path.join(root, f) not in keep: os.remove(os.path.join(root, f))
 
-# Each game: [console, file on share, title, key (cover + save names), has cover, (arcade) zips it also needs]
-games = [g[:4] + [1 if good else 0] + ([g[4]] if g[4] is not None else []) for g, good in zip(games, ok)]
+# Each game: [console, file on share, title, key (cover + save names), has cover,
+#             (arcade) zips it also needs or 0, "year · developer · players"]
+games = [g[:4] + [1 if good else 0] + g[4:] for g, good in zip(games, ok)]
 games.sort(key=lambda g: ([c['id'] for c in consoles].index(g[0]), g[2].lower()))
 with open(os.path.join(ASSETS, 'games.js'), 'w') as out:
     out.write('var SOURCE=' + json.dumps({'host': HOST, 'share': SHARE, 'dir': os.path.basename(ROMS.rstrip('/'))}) + ';\n')
